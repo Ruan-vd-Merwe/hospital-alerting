@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ward Alert MVP — S3 -> Lambda -> SNS (SMS 'ALERT: Bed X')
+
+Parameters:
+  Region:
+    Type: String
+    Default: af-south-1
+  BucketName:
+    Type: String
+    Description: Globally unique S3 bucket name for ward uploads
+  PhoneNumber:
+    Type: String
+    Description: Ward phone in E.164 (e.g., +27XXXXXXXXX)
+  CodeS3Bucket:
+    Type: String
+    Description: S3 bucket that holds the Lambda ZIP artifact
+  CodeS3Key:
+    Type: String
+    Description: Object key of the Lambda ZIP (e.g., lambda/function.zip)
+  WardPrefix:
+    Type: String
+    Default: ward-A3/
+    Description: Only trigger on keys under this prefix (e.g., ward-A3/)
+  KeySuffix:
+    Type: String
+    Default: .mp4
+    Description: Only trigger on keys with this suffix (e.g., .mp4)
+
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: ward-alerts
+
+  SmsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref Topic
+      Protocol: sms
+      Endpoint: !Ref PhoneNumber
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ward-alert-lambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [ 'sns:Publish' ]
+                Resource: !Ref Topic
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: lambda_handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          TOPIC_ARN: !Ref Topic
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+    DeletionPolicy: Retain
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt Function.Arn
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${BucketName}
+
+  BucketNotify:
+    Type: AWS::S3::BucketNotification
+    DependsOn: LambdaInvokePermission
+    Properties:
+      Bucket: !Ref Bucket
+      NotificationConfiguration:
+        LambdaFunctionConfigurations:
+          - LambdaFunctionArn: !GetAtt Function.Arn
+            Events: ['s3:ObjectCreated:*']
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: !Ref WardPrefix
+                  - Name: suffix
+                    Value: !Ref KeySuffix
+
+Outputs:
+  UploadsBucket:
+    Description: Ward uploads bucket
+    Value: !Ref Bucket
+  TopicArn:
+    Description: SNS Topic ARN
+    Value: !Ref Topic
+  FunctionArn:
+    Description: Lambda ARN
+    Value: !GetAtt Function.Arn
