@@ -1,10 +1,10 @@
-    REGION ?= af-south-1
-    STACK  ?= ward-alert-a3
-    BUCKET ?= ruan-ward-a3-uploads     # must be globally unique
+    REGION ?= eu-west-1
+    STACK  ?= hospitalbedvideos
+    BUCKET ?= hospitalbedvideos     # must be globally unique
     ARTIFACTS ?= $(STACK)-artifacts
-    PHONE  ?= +27XXXXXXXXX
+    PHONE  ?= +27746020084
     WARD_PREFIX ?= ward-A3/
-    KEY_SUFFIX  ?= .mp4
+    KEY_SUFFIX  ?= .MOV
 
     ZIP= lambda/function.zip
 
