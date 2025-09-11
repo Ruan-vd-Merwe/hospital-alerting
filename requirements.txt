@@ -1,0 +1,2 @@
+# Python libs used locally (Lambda runtime already has boto3)
+boto3
