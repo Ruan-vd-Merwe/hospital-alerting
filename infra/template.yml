@@ -4,7 +4,7 @@ Description: Ward Alert MVP — S3 -> Lambda -> SNS (SMS 'ALERT: Bed X')
 Parameters:
   Region:
     Type: String
-    Default: eu-west-1
+    Default: af-south-1
   BucketName:
     Type: String
     Description: Globally unique S3 bucket name for ward uploads
